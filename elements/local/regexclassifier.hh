@@ -73,15 +73,17 @@ class RegexClassifier : public Element {
     class RegexProgram {
       public:
         RegexProgram();
-        RegexProgram(const RegexProgram&);
-        RegexProgram& operator=(const RegexProgram&);
+        // RegexProgram(const RegexProgram&);
+        //RegexProgram& operator=(const RegexProgram&);
+        void copy(const RegexProgram& other);
         ~RegexProgram();
         int add(const String & pattern);
         bool compile(); 
         int match(const Packet *p);
       private:
+        bool _compiled;
         Vector<String> _patterns; 
-        re2::RE2::Set _compiled_regex;
+        re2::RE2::Set *_compiled_regex;
     };
 
     RegexProgram _program;
@@ -92,7 +94,7 @@ class RegexClassifier : public Element {
 inline int RegexClassifier::RegexProgram::match(const Packet* p) {
   std::vector<int> matched_patterns;
   re2::StringPiece data((char*)p->data(), p->length());
-  if (!_compiled_regex.Match(data, &matched_patterns)) {
+  if (!_compiled_regex->Match(data, &matched_patterns)) {
     return -1; 
   }
 
@@ -107,7 +109,10 @@ inline int RegexClassifier::RegexProgram::match(const Packet* p) {
 }
 
 inline int RegexClassifier::RegexProgram::add(const String& pattern) {
-  int result = _compiled_regex.Add(re2::StringPiece(pattern.c_str(), pattern.length()), NULL);
+  if (!_compiled_regex) {
+    return -2; 
+  }
+  int result = _compiled_regex->Add(re2::StringPiece(pattern.c_str(), pattern.length()), NULL);
   if (result >= 0) {
     _patterns.push_back(pattern);  
   } 
@@ -116,7 +121,12 @@ inline int RegexClassifier::RegexProgram::add(const String& pattern) {
 }
 
 inline bool RegexClassifier::RegexProgram::compile() {
-  return _compiled_regex.Compile();
+  if (!_compiled_regex) {
+    return false;
+  }
+
+  _compiled = true;
+  return _compiled_regex->Compile();
 }
 
 CLICK_ENDDECLS

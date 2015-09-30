@@ -7,31 +7,35 @@
 
 CLICK_DECLS
 RegexClassifier::RegexProgram::RegexProgram() : 
-_compiled_regex(re2::RE2::Options(), re2::RE2::UNANCHORED) 
+_compiled(false), 
+_compiled_regex(new re2::RE2::Set(re2::RE2::Options(), re2::RE2::UNANCHORED))
 {
   
 }
 
 RegexClassifier::RegexProgram::~RegexProgram() {
-
+    if (_compiled_regex) {
+        delete _compiled_regex;
+    }
 }
 
-RegexClassifier::RegexProgram::RegexProgram(const RegexProgram& other) : 
-_compiled_regex(re2::RE2::Options(), re2::RE2::UNANCHORED) 
-{
+void RegexClassifier::RegexProgram::copy(const RegexProgram& other) {
+    if (!_patterns.empty()) {
+        _patterns.clear();
+    } 
+
+    if (_compiled_regex) {
+        delete _compiled_regex;
+    }
+    _compiled_regex = new re2::RE2::Set(re2::RE2::Options(), re2::RE2::UNANCHORED);
     for (int i=0; i < other._patterns.size(); i++) {
         add(other._patterns[i]);
     }
-    compile();
-}
 
-RegexClassifier::RegexProgram& RegexClassifier::RegexProgram::operator=(const RegexProgram& other) {
-  for (int i=0; i < other._patterns.size(); i++) {
-      add(other._patterns[i]);
-  }
-  compile();
+    if (other._compiled) {
+        compile();    
+    }
 
-  return *this; 
 }
 
 RegexClassifier::RegexClassifier() {
@@ -49,8 +53,9 @@ int RegexClassifier::configure(Vector<String> &conf, ErrorHandler *errh)
 
     for (int i=0; i < conf.size(); ++i) {
         String pattern = cp_unquote(conf[i]);
-        if (new_program.add(pattern) == -1) {
-            return errh->error("Error adding pattern %d: %s", i, pattern.c_str());
+        int result = new_program.add(pattern); 
+        if (result < 0) {
+            return errh->error("Error (%d) adding pattern %d: %s", result, i, pattern.c_str());
         }
     }
 
@@ -60,7 +65,7 @@ int RegexClassifier::configure(Vector<String> &conf, ErrorHandler *errh)
 
 
     if (!errh->nerrors()) {
-        _program = new_program;
+        _program.copy(new_program);
         return 0;
     } else {
         return -1;
