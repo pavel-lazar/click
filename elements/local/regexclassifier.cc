@@ -6,37 +6,6 @@
 #include <click/router.hh>
 
 CLICK_DECLS
-RegexClassifier::RegexProgram::RegexProgram() : 
-_compiled(false), 
-_compiled_regex(new re2::RE2::Set(re2::RE2::Options(), re2::RE2::UNANCHORED))
-{
-  
-}
-
-RegexClassifier::RegexProgram::~RegexProgram() {
-    if (_compiled_regex) {
-        delete _compiled_regex;
-    }
-}
-
-void RegexClassifier::RegexProgram::copy(const RegexProgram& other) {
-    if (!_patterns.empty()) {
-        _patterns.clear();
-    } 
-
-    if (_compiled_regex) {
-        delete _compiled_regex;
-    }
-    _compiled_regex = new re2::RE2::Set(re2::RE2::Options(), re2::RE2::UNANCHORED);
-    for (int i=0; i < other._patterns.size(); i++) {
-        add(other._patterns[i]);
-    }
-
-    if (other._compiled) {
-        compile();    
-    }
-
-}
 
 RegexClassifier::RegexClassifier() {
 }
@@ -49,27 +18,53 @@ int RegexClassifier::configure(Vector<String> &conf, ErrorHandler *errh)
     if (conf.size() != noutputs())
 	   return errh->error("need %d arguments, one per output port", noutputs());
     
-    RegexProgram new_program; 
+    if (!is_valid_patterns(conf, errh)) {
+        return -1;
+    }
+
+    if (!_program.is_open()) {
+        _program.reset();
+    }
 
     for (int i=0; i < conf.size(); ++i) {
         String pattern = cp_unquote(conf[i]);
-        int result = new_program.add(pattern); 
+        int result = _program.add_pattern(pattern); 
         if (result < 0) {
+            // This should not happen
             return errh->error("Error (%d) adding pattern %d: %s", result, i, pattern.c_str());
         }
     }
 
-    if (!new_program.compile()) {
+    if (!_program.compile()) {
+        // This should not happen
         return errh->error("Unable to compile patterns");
     }
 
 
     if (!errh->nerrors()) {
-        _program.copy(new_program);
         return 0;
     } else {
         return -1;
     }
+}
+
+bool RegexClassifier::is_valid_patterns(Vector<String> &patterns, ErrorHandler *errh) const{
+    RegexSet test_set;
+    bool valid = true;
+    for (int i=0; i < patterns.size(); ++i) {
+        String pattern = cp_unquote(patterns[i]);
+        int result = test_set.add_pattern(pattern); 
+        if (result < 0) {
+            errh->error("Error (%d) in pattern %d: %s", result, i, pattern.c_str());
+            valid = false;
+        }
+    }
+    if (valid) {
+        // Try to compile 
+        valid = test_set.compile();
+    }
+
+    return valid;
 }
 
 void RegexClassifier::add_handlers() {
@@ -80,7 +75,7 @@ void RegexClassifier::add_handlers() {
 }
 
 void RegexClassifier::push(int, Packet* p) {
-    checked_output_push(_program.match(p), p);
+    checked_output_push(_program.match_first(p), p);
 }
 
 CLICK_ENDDECLS

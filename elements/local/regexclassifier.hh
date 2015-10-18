@@ -1,8 +1,7 @@
 #ifndef CLICK_REGEXCLASSIFIER_HH
 #define CLICK_REGEXCLASSIFIER_HH
 #include <click/element.hh>
-#include <re2/re2.h>
-#include <re2/set.h>
+#include "regexset.hh"
 CLICK_DECLS
 
 /*
@@ -69,65 +68,11 @@ class RegexClassifier : public Element {
     void add_handlers() CLICK_COLD;
     void push(int port, Packet *);
 
-  protected:
-    class RegexProgram {
-      public:
-        RegexProgram();
-        // RegexProgram(const RegexProgram&);
-        //RegexProgram& operator=(const RegexProgram&);
-        void copy(const RegexProgram& other);
-        ~RegexProgram();
-        int add(const String & pattern);
-        bool compile(); 
-        int match(const Packet *p);
-      private:
-        bool _compiled;
-        Vector<String> _patterns; 
-        re2::RE2::Set *_compiled_regex;
-    };
-
-    RegexProgram _program;
+  private:
+    bool is_valid_patterns(Vector<String> &patterns, ErrorHandler *errh) const;
+    RegexSet _program;
+    
 };
-
-// Match a packet against a set of Regex patterns,
-// return the first pattern matched or -1 if no match
-inline int RegexClassifier::RegexProgram::match(const Packet* p) {
-  std::vector<int> matched_patterns;
-  re2::StringPiece data((char*)p->data(), p->length());
-  if (!_compiled_regex->Match(data, &matched_patterns)) {
-    return -1; 
-  }
-
-  int first_match = matched_patterns[0];
-  for (unsigned i=1; i < matched_patterns.size(); ++i) {
-    if (matched_patterns[i] < first_match) {
-      first_match = matched_patterns[i];
-    }
-  }
-
-  return first_match;
-}
-
-inline int RegexClassifier::RegexProgram::add(const String& pattern) {
-  if (!_compiled_regex) {
-    return -2; 
-  }
-  int result = _compiled_regex->Add(re2::StringPiece(pattern.c_str(), pattern.length()), NULL);
-  if (result >= 0) {
-    _patterns.push_back(pattern);  
-  } 
-
-  return result;
-}
-
-inline bool RegexClassifier::RegexProgram::compile() {
-  if (!_compiled_regex) {
-    return false;
-  }
-
-  _compiled = true;
-  return _compiled_regex->Compile();
-}
 
 CLICK_ENDDECLS
 #endif

@@ -84,5 +84,3 @@ CLICK_ENDDECLS
 ELEMENT_REQUIRES(userlevel)
 ELEMENT_PROVIDES(AhoCorasick)
 ELEMENT_MT_SAFE(AhoCorasick)
-// The root is in click/userlevel
-// ELEMENT_LIBS((-L ../../multifast/ahocorasick/build -lahocorasick))
